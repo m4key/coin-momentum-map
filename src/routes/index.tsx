@@ -49,15 +49,28 @@ function Index() {
   const [sortKey, setSortKey] = useState<SortKey>("volume24h");
   const [dir, setDir] = useState<"asc" | "desc">("desc");
 
+  const query = useQuery({
+    queryKey: ["binance-tickers"],
+    queryFn: fetchTickers,
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: false,
+    retry: (n, err) => !(err instanceof BinanceError && err.kind === "rate_limit") && n < 1,
+  });
+
+  const live = useMemo(() => (query.data ? mergeTickers(COINS, query.data) : []), [query.data]);
+
   const rows = useMemo(
-    () => sortCoins(filterCoins(COINS, q, change, signal), sortKey, dir),
-    [q, change, signal, sortKey, dir],
+    () => sortCoins(filterCoins(live, q, change, signal), sortKey, dir),
+    [live, q, change, signal, sortKey, dir],
   );
 
-  const totalVol = COINS.reduce((s, c) => s + c.volume24h, 0);
-  const avgChange = COINS.reduce((s, c) => s + c.change24h, 0) / COINS.length;
-  const gainers = COINS.filter((c) => c.change24h >= 0).length;
-  const avgRsi = COINS.reduce((s, c) => s + c.rsi, 0) / COINS.length;
+  const n = live.length || 1;
+  const totalVol = live.reduce((s, c) => s + c.volume24h, 0);
+  const avgChange = live.reduce((s, c) => s + c.change24h, 0) / n;
+  const gainers = live.filter((c) => c.change24h >= 0).length;
+  const avgRsi = live.reduce((s, c) => s + c.rsi, 0) / n;
+  const hasData = live.length > 0;
+  const updatedAt = query.dataUpdatedAt ? new Date(query.dataUpdatedAt).toLocaleTimeString("ru-RU") : null;
 
   const toggleSort = (k: SortKey) => {
     if (k === sortKey) setDir(dir === "asc" ? "desc" : "asc");
