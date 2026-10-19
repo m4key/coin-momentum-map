@@ -1,13 +1,37 @@
 import { describe, expect, it } from "vitest";
-import { mergeTickers } from "@/lib/binance";
-import { COINS } from "@/lib/coins";
+import { buildCoins, type SymbolInfo, type Ticker } from "@/lib/binance";
 
-describe("mergeTickers", () => {
+const sym = (base: string, quote = "USDT", status = "TRADING"): SymbolInfo => ({
+  symbol: base + quote,
+  baseAsset: base,
+  quoteAsset: quote,
+  status,
+});
+const tk = (symbol: string, vol: number): Ticker => ({
+  symbol,
+  lastPrice: "1.5",
+  priceChangePercent: "-3.2",
+  quoteVolume: String(vol),
+});
+
+describe("buildCoins", () => {
   it("uses lastPrice, priceChangePercent and quoteVolume", () => {
-    const out = mergeTickers(COINS, [
-      { symbol: "BTCUSDT", lastPrice: "100.5", priceChangePercent: "-3.2", quoteVolume: "12345" },
-    ]);
-    expect(out).toHaveLength(1);
-    expect(out[0]).toMatchObject({ ticker: "BTC", price: 100.5, change24h: -3.2, volume24h: 12345 });
+    const [c] = buildCoins([sym("SOL")], [tk("SOLUSDT", 1000)]);
+    expect(c).toMatchObject({ ticker: "SOL", price: 1.5, change24h: -3.2, volume24h: 1000 });
+  });
+
+  it("excludes BTC, ETH, stablecoins, leveraged tokens, non-USDT and inactive pairs", () => {
+    const symbols = [sym("BTC"), sym("ETH"), sym("USDC"), sym("FDUSD"), sym("BNBUP"), sym("LINK", "BTC"), sym("XRP", "USDT", "BREAK"), sym("ADA")];
+    const tickers = symbols.map((s) => tk(s.symbol, 100));
+    expect(buildCoins(symbols, tickers).map((c) => c.ticker)).toEqual(["ADA"]);
+  });
+
+  it("keeps at most 100 coins with the highest volume", () => {
+    const symbols = Array.from({ length: 150 }, (_, i) => sym(`C${i}`));
+    const tickers = symbols.map((s, i) => tk(s.symbol, i + 1));
+    const out = buildCoins(symbols, tickers);
+    expect(out).toHaveLength(100);
+    expect(out[0].ticker).toBe("C149");
+    expect(out[99].ticker).toBe("C50");
   });
 });

@@ -51,15 +51,38 @@ function Index() {
   const [sortKey, setSortKey] = useState<SortKey>("volume24h");
   const [dir, setDir] = useState<"asc" | "desc">("desc");
 
-  const query = useQuery({
+  const retry = (n: number, err: Error) => !(err instanceof BinanceError && err.kind === "rate_limit") && n < 1;
+  // Pair list changes rarely: load once, refresh hourly.
+  const symbolsQuery = useQuery({
+    queryKey: ["binance-symbols"],
+    queryFn: fetchSymbols,
+    staleTime: 60 * 60_000,
+    refetchInterval: 60 * 60_000,
+    refetchOnWindowFocus: false,
+    retry,
+  });
+  const tickersQuery = useQuery({
     queryKey: ["binance-tickers"],
     queryFn: fetchTickers,
     refetchInterval: 30_000,
     refetchOnWindowFocus: false,
-    retry: (n, err) => !(err instanceof BinanceError && err.kind === "rate_limit") && n < 1,
+    enabled: !!symbolsQuery.data,
+    retry,
   });
+  const failed = symbolsQuery.isError ? symbolsQuery : tickersQuery;
+  const query = {
+    isFetching: symbolsQuery.isFetching || tickersQuery.isFetching,
+    isPending: symbolsQuery.isPending || tickersQuery.isPending,
+    isError: symbolsQuery.isError || tickersQuery.isError,
+    error: failed.error,
+    dataUpdatedAt: tickersQuery.dataUpdatedAt,
+    refetch: () => (symbolsQuery.isError ? symbolsQuery.refetch() : tickersQuery.refetch()),
+  };
 
-  const live = useMemo(() => (query.data ? mergeTickers(COINS, query.data) : []), [query.data]);
+  const live = useMemo(
+    () => (symbolsQuery.data && tickersQuery.data ? buildCoins(symbolsQuery.data, tickersQuery.data) : []),
+    [symbolsQuery.data, tickersQuery.data],
+  );
 
   const rows = useMemo(
     () => sortCoins(filterCoins(live, q, change, signal), sortKey, dir),
