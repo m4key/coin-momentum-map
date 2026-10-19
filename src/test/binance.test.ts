@@ -21,9 +21,9 @@ describe("buildCoins", () => {
   });
 
   it("excludes BTC, ETH, stablecoins, leveraged tokens, non-USDT and inactive pairs", () => {
-    const symbols = [sym("BTC"), sym("ETH"), sym("USDC"), sym("FDUSD"), sym("BNBUP"), sym("LINK", "BTC"), sym("XRP", "USDT", "BREAK"), sym("ADA")];
+    const symbols = [sym("BTC"), sym("ETH"), sym("USDC"), sym("FDUSD"), sym("BNBUP"), sym("NVDAB"), sym("ARB"), sym("LINK", "BTC"), sym("XRP", "USDT", "BREAK"), sym("ADA")];
     const tickers = symbols.map((s) => tk(s.symbol, 100));
-    expect(buildCoins(symbols, tickers).map((c) => c.ticker)).toEqual(["ADA"]);
+    expect(buildCoins(symbols, tickers).map((c) => c.ticker)).toEqual(["ARB", "ADA"]);
   });
 
   it("keeps at most 100 coins with the highest volume", () => {

@@ -82,11 +82,15 @@ const STABLES = new Set([
 // Wrapped / staked copies of majors.
 const WRAPPED = new Set(["WBTC", "WBETH", "BETH", "STETH", "WSTETH", "CBETH", "BNSOL"]);
 
+const CRYPTO_ENDING_B = new Set(["ARB", "BNB", "CKB", "DGB", "TRB", "SHIB", "BB", "YB"]);
+
 export function isEligible(s: SymbolInfo): boolean {
   if (s.quoteAsset !== "USDT" || s.status !== "TRADING" || s.isSpotTradingAllowed === false) return false;
   const b = s.baseAsset.toUpperCase();
   if (MAJORS.has(b) || STABLES.has(b) || WRAPPED.has(b)) return false;
   if (/(UP|DOWN|BULL|BEAR)$/.test(b) && b.length > 4) return false; // leveraged tokens
+  // Tokenized stocks/ETFs on Binance use a "B" suffix (AAPLB, NVDAB, SPYB…); keep real crypto with that ending.
+  if (b.endsWith("B") && b.length >= 3 && !CRYPTO_ENDING_B.has(b)) return false;
   return true;
 }
 
