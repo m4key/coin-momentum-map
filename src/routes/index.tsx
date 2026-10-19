@@ -167,6 +167,32 @@ function Index() {
           </div>
         )}
 
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3 text-sm">
+          <span className="text-muted-foreground">
+            Монет в таблице: <span className="font-mono text-foreground">{rows.length}</span>
+            {hasData && rows.length !== live.length && <> из <span className="font-mono">{live.length}</span></>}
+            <span className="ml-2 text-xs">(топ по объёму, без BTC, ETH и стейблкоинов)</span>
+          </span>
+          <select
+            aria-label="Сортировка"
+            value={`${sortKey}:${dir}`}
+            onChange={(e) => {
+              const [k, d] = e.target.value.split(":") as [SortKey, "asc" | "desc"];
+              setSortKey(k);
+              setDir(d);
+            }}
+            className={selectCls}
+          >
+            <option value="volume24h:desc">Объём: по убыванию</option>
+            <option value="volume24h:asc">Объём: по возрастанию</option>
+            <option value="change24h:desc">Изменение 24ч: лидеры роста</option>
+            <option value="change24h:asc">Изменение 24ч: лидеры падения</option>
+            {!["volume24h", "change24h"].includes(sortKey) && (
+              <option value={`${sortKey}:${dir}`}>Другая сортировка (по столбцу)</option>
+            )}
+          </select>
+        </div>
+
         <div className="mb-4 flex flex-col gap-3 sm:flex-row">
           <input
             value={q}
