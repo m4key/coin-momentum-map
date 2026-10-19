@@ -1,8 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { COINS, filterCoins, sortCoins, type ChangeFilter, type Signal, type SortKey } from "@/lib/coins";
-import { BinanceError, fetchTickers, mergeTickers } from "@/lib/binance";
+import { filterCoins, sortCoins, type ChangeFilter, type Signal, type SortKey } from "@/lib/coins";
+import { BinanceError, buildCoins, fetchSymbols, fetchTickers } from "@/lib/binance";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -51,15 +51,38 @@ function Index() {
   const [sortKey, setSortKey] = useState<SortKey>("volume24h");
   const [dir, setDir] = useState<"asc" | "desc">("desc");
 
-  const query = useQuery({
+  const retry = (n: number, err: Error) => !(err instanceof BinanceError && err.kind === "rate_limit") && n < 1;
+  // Pair list changes rarely: load once, refresh hourly.
+  const symbolsQuery = useQuery({
+    queryKey: ["binance-symbols"],
+    queryFn: fetchSymbols,
+    staleTime: 60 * 60_000,
+    refetchInterval: 60 * 60_000,
+    refetchOnWindowFocus: false,
+    retry,
+  });
+  const tickersQuery = useQuery({
     queryKey: ["binance-tickers"],
     queryFn: fetchTickers,
     refetchInterval: 30_000,
     refetchOnWindowFocus: false,
-    retry: (n, err) => !(err instanceof BinanceError && err.kind === "rate_limit") && n < 1,
+    enabled: !!symbolsQuery.data,
+    retry,
   });
+  const failed = symbolsQuery.isError ? symbolsQuery : tickersQuery;
+  const query = {
+    isFetching: symbolsQuery.isFetching || tickersQuery.isFetching,
+    isPending: symbolsQuery.isPending || tickersQuery.isPending,
+    isError: symbolsQuery.isError || tickersQuery.isError,
+    error: failed.error,
+    dataUpdatedAt: tickersQuery.dataUpdatedAt,
+    refetch: () => (symbolsQuery.isError ? symbolsQuery.refetch() : tickersQuery.refetch()),
+  };
 
-  const live = useMemo(() => (query.data ? mergeTickers(COINS, query.data) : []), [query.data]);
+  const live = useMemo(
+    () => (symbolsQuery.data && tickersQuery.data ? buildCoins(symbolsQuery.data, tickersQuery.data) : []),
+    [symbolsQuery.data, tickersQuery.data],
+  );
 
   const rows = useMemo(
     () => sortCoins(filterCoins(live, q, change, signal), sortKey, dir),
@@ -143,6 +166,32 @@ function Index() {
             </button>
           </div>
         )}
+
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3 text-sm">
+          <span className="text-muted-foreground">
+            Монет в таблице: <span className="font-mono text-foreground">{rows.length}</span>
+            {hasData && rows.length !== live.length && <> из <span className="font-mono">{live.length}</span></>}
+            <span className="ml-2 text-xs">(топ по объёму, без BTC, ETH и стейблкоинов)</span>
+          </span>
+          <select
+            aria-label="Сортировка"
+            value={`${sortKey}:${dir}`}
+            onChange={(e) => {
+              const [k, d] = e.target.value.split(":") as [SortKey, "asc" | "desc"];
+              setSortKey(k);
+              setDir(d);
+            }}
+            className={selectCls}
+          >
+            <option value="volume24h:desc">Объём: по убыванию</option>
+            <option value="volume24h:asc">Объём: по возрастанию</option>
+            <option value="change24h:desc">Изменение 24ч: лидеры роста</option>
+            <option value="change24h:asc">Изменение 24ч: лидеры падения</option>
+            {!["volume24h", "change24h"].includes(sortKey) && (
+              <option value={`${sortKey}:${dir}`}>Другая сортировка (по столбцу)</option>
+            )}
+          </select>
+        </div>
 
         <div className="mb-4 flex flex-col gap-3 sm:flex-row">
           <input
