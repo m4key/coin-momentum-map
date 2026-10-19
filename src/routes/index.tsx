@@ -80,11 +80,16 @@ function Index() {
     }
   };
 
+  const dash = "—";
   const summary = [
-    { label: "Объём 24ч", value: compact(totalVol) },
-    { label: "Среднее изменение", value: pct(avgChange), cls: avgChange >= 0 ? "text-up" : "text-down" },
-    { label: "Растут / падают", value: `${gainers} / ${COINS.length - gainers}` },
-    { label: "Средний RSI", value: avgRsi.toFixed(1) },
+    { label: "Объём 24ч", value: hasData ? compact(totalVol) : dash },
+    {
+      label: "Среднее изменение",
+      value: hasData ? pct(avgChange) : dash,
+      cls: hasData ? (avgChange >= 0 ? "text-up" : "text-down") : "",
+    },
+    { label: "Растут / падают", value: hasData ? `${gainers} / ${live.length - gainers}` : dash },
+    { label: "Средний RSI (демо)", value: hasData ? avgRsi.toFixed(1) : dash },
   ];
 
   const selectCls =
@@ -94,9 +99,19 @@ function Index() {
     <div className="min-h-screen bg-background text-foreground">
       <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
         <header className="mb-8">
-          <div className="flex items-center gap-3">
-            <div className="h-8 w-8 rounded-md bg-primary" />
-            <h1 className="font-mono text-2xl font-semibold tracking-tight">Crypto Metrics</h1>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="h-8 w-8 rounded-md bg-primary" />
+              <h1 className="font-mono text-2xl font-semibold tracking-tight">Crypto Metrics</h1>
+            </div>
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              {query.isFetching && (
+                <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+              )}
+              <span>Данные Binance Spot</span>
+              <span>·</span>
+              <span>{updatedAt ? `Обновлено: ${updatedAt}` : "Загрузка…"}</span>
+            </div>
           </div>
           <div className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
             {summary.map((s) => (
@@ -107,6 +122,25 @@ function Index() {
             ))}
           </div>
         </header>
+
+        {query.isError && (
+          <div className="mb-4 flex flex-col gap-3 rounded-lg border border-down/40 bg-down/10 p-4 text-sm sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <div className="font-medium text-down">Не удалось обновить данные Binance</div>
+              <div className="text-muted-foreground">
+                {query.error instanceof Error ? query.error.message : "Неизвестная ошибка."}
+                {hasData && updatedAt ? ` Показаны последние полученные данные от ${updatedAt}.` : ""}
+              </div>
+            </div>
+            <button
+              onClick={() => query.refetch()}
+              disabled={query.isFetching}
+              className="h-9 rounded-md border border-border bg-card px-4 text-sm font-medium hover:bg-muted disabled:opacity-50"
+            >
+              {query.isFetching ? "Загрузка…" : "Повторить"}
+            </button>
+          </div>
+        )}
 
         <div className="mb-4 flex flex-col gap-3 sm:flex-row">
           <input
