@@ -1,6 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { COINS, filterCoins, sortCoins, type ChangeFilter, type Signal, type SortKey } from "@/lib/coins";
+import { BinanceError, fetchTickers, mergeTickers } from "@/lib/binance";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -27,8 +29,8 @@ const COLUMNS: { key: SortKey; label: string; align?: string }[] = [
   { key: "price", label: "Цена", align: "text-right" },
   { key: "change24h", label: "24ч", align: "text-right" },
   { key: "volume24h", label: "Объём 24ч", align: "text-right" },
-  { key: "rsi", label: "RSI", align: "text-right" },
-  { key: "signal", label: "Сигнал", align: "text-right" },
+  { key: "rsi", label: "RSI (демо)", align: "text-right" },
+  { key: "signal", label: "Сигнал (демо)", align: "text-right" },
 ];
 
 const signalLabel: Record<Signal, string> = { BUY: "Покупка", SELL: "Продажа", HOLD: "Держать" };
@@ -49,15 +51,28 @@ function Index() {
   const [sortKey, setSortKey] = useState<SortKey>("volume24h");
   const [dir, setDir] = useState<"asc" | "desc">("desc");
 
+  const query = useQuery({
+    queryKey: ["binance-tickers"],
+    queryFn: fetchTickers,
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: false,
+    retry: (n, err) => !(err instanceof BinanceError && err.kind === "rate_limit") && n < 1,
+  });
+
+  const live = useMemo(() => (query.data ? mergeTickers(COINS, query.data) : []), [query.data]);
+
   const rows = useMemo(
-    () => sortCoins(filterCoins(COINS, q, change, signal), sortKey, dir),
-    [q, change, signal, sortKey, dir],
+    () => sortCoins(filterCoins(live, q, change, signal), sortKey, dir),
+    [live, q, change, signal, sortKey, dir],
   );
 
-  const totalVol = COINS.reduce((s, c) => s + c.volume24h, 0);
-  const avgChange = COINS.reduce((s, c) => s + c.change24h, 0) / COINS.length;
-  const gainers = COINS.filter((c) => c.change24h >= 0).length;
-  const avgRsi = COINS.reduce((s, c) => s + c.rsi, 0) / COINS.length;
+  const n = live.length || 1;
+  const totalVol = live.reduce((s, c) => s + c.volume24h, 0);
+  const avgChange = live.reduce((s, c) => s + c.change24h, 0) / n;
+  const gainers = live.filter((c) => c.change24h >= 0).length;
+  const avgRsi = live.reduce((s, c) => s + c.rsi, 0) / n;
+  const hasData = live.length > 0;
+  const updatedAt = query.dataUpdatedAt ? new Date(query.dataUpdatedAt).toLocaleTimeString("ru-RU") : null;
 
   const toggleSort = (k: SortKey) => {
     if (k === sortKey) setDir(dir === "asc" ? "desc" : "asc");
@@ -67,11 +82,16 @@ function Index() {
     }
   };
 
+  const dash = "—";
   const summary = [
-    { label: "Объём 24ч", value: compact(totalVol) },
-    { label: "Среднее изменение", value: pct(avgChange), cls: avgChange >= 0 ? "text-up" : "text-down" },
-    { label: "Растут / падают", value: `${gainers} / ${COINS.length - gainers}` },
-    { label: "Средний RSI", value: avgRsi.toFixed(1) },
+    { label: "Объём 24ч", value: hasData ? compact(totalVol) : dash },
+    {
+      label: "Среднее изменение",
+      value: hasData ? pct(avgChange) : dash,
+      cls: hasData ? (avgChange >= 0 ? "text-up" : "text-down") : "",
+    },
+    { label: "Растут / падают", value: hasData ? `${gainers} / ${live.length - gainers}` : dash },
+    { label: "Средний RSI (демо)", value: hasData ? avgRsi.toFixed(1) : dash },
   ];
 
   const selectCls =
@@ -81,9 +101,19 @@ function Index() {
     <div className="min-h-screen bg-background text-foreground">
       <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
         <header className="mb-8">
-          <div className="flex items-center gap-3">
-            <div className="h-8 w-8 rounded-md bg-primary" />
-            <h1 className="font-mono text-2xl font-semibold tracking-tight">Crypto Metrics</h1>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="h-8 w-8 rounded-md bg-primary" />
+              <h1 className="font-mono text-2xl font-semibold tracking-tight">Crypto Metrics</h1>
+            </div>
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              {query.isFetching && (
+                <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+              )}
+              <span>Данные Binance Spot</span>
+              <span>·</span>
+              <span>{updatedAt ? `Обновлено: ${updatedAt}` : "Загрузка…"}</span>
+            </div>
           </div>
           <div className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
             {summary.map((s) => (
@@ -94,6 +124,25 @@ function Index() {
             ))}
           </div>
         </header>
+
+        {query.isError && (
+          <div className="mb-4 flex flex-col gap-3 rounded-lg border border-down/40 bg-down/10 p-4 text-sm sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <div className="font-medium text-down">Не удалось обновить данные Binance</div>
+              <div className="text-muted-foreground">
+                {query.error instanceof Error ? query.error.message : "Неизвестная ошибка."}
+                {hasData && updatedAt ? ` Показаны последние полученные данные от ${updatedAt}.` : ""}
+              </div>
+            </div>
+            <button
+              onClick={() => query.refetch()}
+              disabled={query.isFetching}
+              className="h-9 rounded-md border border-border bg-card px-4 text-sm font-medium hover:bg-muted disabled:opacity-50"
+            >
+              {query.isFetching ? "Загрузка…" : "Повторить"}
+            </button>
+          </div>
+        )}
 
         <div className="mb-4 flex flex-col gap-3 sm:flex-row">
           <input
@@ -157,14 +206,26 @@ function Index() {
               {rows.length === 0 && (
                 <tr>
                   <td colSpan={6} className="px-4 py-10 text-center text-muted-foreground">
-                    Ничего не найдено
+                    {query.isPending ? (
+                      <span className="inline-flex items-center gap-2">
+                        <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                        Загрузка данных Binance…
+                      </span>
+                    ) : !hasData ? (
+                      "Нет данных: Binance недоступен."
+                    ) : (
+                      "Ничего не найдено"
+                    )}
                   </td>
                 </tr>
               )}
             </tbody>
           </table>
         </div>
-        <p className="mt-3 text-xs text-muted-foreground">Демонстрационные данные.</p>
+        <p className="mt-3 text-xs text-muted-foreground">
+          Цена, изменение и объём — данные Binance Spot (пары к USDT), обновление каждые 30 секунд. RSI и сигналы —
+          демонстрационные значения, не являются торговыми рекомендациями.
+        </p>
       </div>
     </div>
   );
