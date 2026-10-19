@@ -29,8 +29,8 @@ const COLUMNS: { key: SortKey; label: string; align?: string }[] = [
   { key: "price", label: "Цена", align: "text-right" },
   { key: "change24h", label: "24ч", align: "text-right" },
   { key: "volume24h", label: "Объём 24ч", align: "text-right" },
-  { key: "rsi", label: "RSI", align: "text-right" },
-  { key: "signal", label: "Сигнал", align: "text-right" },
+  { key: "rsi", label: "RSI (демо)", align: "text-right" },
+  { key: "signal", label: "Сигнал (демо)", align: "text-right" },
 ];
 
 const signalLabel: Record<Signal, string> = { BUY: "Покупка", SELL: "Продажа", HOLD: "Держать" };
