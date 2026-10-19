@@ -1,6 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { COINS, filterCoins, sortCoins, type ChangeFilter, type Signal, type SortKey } from "@/lib/coins";
+import { BinanceError, fetchTickers, mergeTickers } from "@/lib/binance";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -204,14 +206,26 @@ function Index() {
               {rows.length === 0 && (
                 <tr>
                   <td colSpan={6} className="px-4 py-10 text-center text-muted-foreground">
-                    Ничего не найдено
+                    {query.isPending ? (
+                      <span className="inline-flex items-center gap-2">
+                        <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                        Загрузка данных Binance…
+                      </span>
+                    ) : !hasData ? (
+                      "Нет данных: Binance недоступен."
+                    ) : (
+                      "Ничего не найдено"
+                    )}
                   </td>
                 </tr>
               )}
             </tbody>
           </table>
         </div>
-        <p className="mt-3 text-xs text-muted-foreground">Демонстрационные данные.</p>
+        <p className="mt-3 text-xs text-muted-foreground">
+          Цена, изменение и объём — данные Binance Spot (пары к USDT), обновление каждые 30 секунд. RSI и сигналы —
+          демонстрационные значения, не являются торговыми рекомендациями.
+        </p>
       </div>
     </div>
   );
