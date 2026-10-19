@@ -1,8 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { COINS, filterCoins, sortCoins, type ChangeFilter, type Signal, type SortKey } from "@/lib/coins";
-import { BinanceError, fetchTickers, mergeTickers } from "@/lib/binance";
+import { filterCoins, sortCoins, type ChangeFilter, type Signal, type SortKey } from "@/lib/coins";
+import { BinanceError, buildCoins, fetchSymbols, fetchTickers } from "@/lib/binance";
 
 export const Route = createFileRoute("/")({
   head: () => ({
