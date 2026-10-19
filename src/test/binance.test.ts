@@ -31,7 +31,7 @@ describe("buildCoins", () => {
     const tickers = symbols.map((s, i) => tk(s.symbol, i + 1));
     const out = buildCoins(symbols, tickers);
     expect(out).toHaveLength(100);
-    expect(out[0].ticker).toBe("C149");
-    expect(out[99].ticker).toBe("C50");
+    expect(out[0]!.ticker).toBe("C149");
+    expect(out[99]!.ticker).toBe("C50");
   });
 });
