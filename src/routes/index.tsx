@@ -3,12 +3,17 @@ import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { filterCoins, sortCoins, type ChangeFilter, type Signal, type SortKey } from "@/lib/coins";
 import { BinanceError, buildCoins, fetchSymbols, fetchTickers } from "@/lib/binance";
+import { useIndicators } from "@/hooks/use-indicators";
+import { momentumLabel } from "@/lib/indicators";
+import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Info } from "lucide-react";
 
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
       { title: "Crypto Metrics — скринер альткоинов" },
-      { name: "description", content: "Скринер криптовалют: цена, изменение, объём, RSI и торговые сигналы." },
+      { name: "description", content: "Скринер альткоинов Binance Spot: реальные котировки, часовой RSI 14, EMA 20/50 и исследовательский ALTS Momentum." },
       { property: "og:title", content: "Crypto Metrics — скринер альткоинов" },
       { property: "og:description", content: "Анализ альткоинов и поиск торговых возможностей." },
       { property: "og:type", content: "website" },
@@ -29,15 +34,16 @@ const COLUMNS: { key: SortKey; label: string; align?: string }[] = [
   { key: "price", label: "Цена", align: "text-right" },
   { key: "change24h", label: "24ч", align: "text-right" },
   { key: "volume24h", label: "Объём 24ч", align: "text-right" },
-  { key: "rsi", label: "RSI (демо)", align: "text-right" },
-  { key: "signal", label: "Сигнал (демо)", align: "text-right" },
+  { key: "rsi", label: "RSI 14 · 1ч", align: "text-right" },
+  { key: "ema20", label: "EMA 20 · 1ч", align: "text-right" },
+  { key: "ema50", label: "EMA 50 · 1ч", align: "text-right" },
+  { key: "signal", label: "ALTS Momentum", align: "text-right" },
 ];
 
-const signalLabel: Record<Signal, string> = { BUY: "Покупка", SELL: "Продажа", HOLD: "Держать" };
 const signalClass: Record<Signal, string> = {
-  BUY: "bg-up/15 text-up border-up/30",
-  SELL: "bg-down/15 text-down border-down/30",
-  HOLD: "bg-muted text-muted-foreground border-border",
+  ENTRY: "bg-up/15 text-up border-up/30",
+  WATCH: "bg-primary/15 text-primary border-primary/30",
+  NONE: "bg-muted text-muted-foreground border-border",
 };
 
 function rsiClass(r: number) {
@@ -47,7 +53,7 @@ function rsiClass(r: number) {
 function Index() {
   const [q, setQ] = useState("");
   const [change, setChange] = useState<ChangeFilter>("all");
-  const [signal, setSignal] = useState<Signal | "all">("all");
+  const [signal, setSignal] = useState<Signal | "all" | "missing">("all");
   const [sortKey, setSortKey] = useState<SortKey>("volume24h");
   const [dir, setDir] = useState<"asc" | "desc">("desc");
 
@@ -79,10 +85,28 @@ function Index() {
     refetch: () => (symbolsQuery.isError ? symbolsQuery.refetch() : tickersQuery.refetch()),
   };
 
-  const live = useMemo(
+  const market = useMemo(
     () => (symbolsQuery.data && tickersQuery.data ? buildCoins(symbolsQuery.data, tickersQuery.data) : []),
     [symbolsQuery.data, tickersQuery.data],
   );
+  const indicatorQueries = useIndicators(market);
+  const live = market.map((coin, i) => {
+    const result = indicatorQueries[i];
+    const indicators = result?.isError ? null : result?.data;
+    // Old values must not masquerade as a current confirmed signal after refresh failures.
+    const current = indicators && Date.now() < indicators.candleClosedAt + 3_600_000 + 60_000 ? indicators : null;
+    return {
+      ...coin, indicators: current,
+      rsi: current?.rsi ?? null, ema20: current?.ema20 ?? null, ema50: current?.ema50 ?? null,
+      signal: current?.signal ?? null,
+      indicatorError: result?.isError && result.error instanceof Error ? result.error.message :
+        result?.isPending ? "Загрузка часовых свечей…" : "Нет актуальных закрытых свечей.",
+    };
+  });
+  const computed = live.flatMap((c) => c.indicators ? [c.indicators] : []);
+  const calculationTime = computed.length ? new Date(Math.max(...computed.map((c) => c.calculatedAt))).toLocaleTimeString("ru-RU") : null;
+  const indicatorFailures = indicatorQueries.filter((result) => result.isError).length;
+  const indicatorsFetching = indicatorQueries.some((result) => result.isFetching);
 
   const rows = useMemo(
     () => sortCoins(filterCoins(live, q, change, signal), sortKey, dir),
@@ -93,7 +117,7 @@ function Index() {
   const totalVol = live.reduce((s, c) => s + c.volume24h, 0);
   const avgChange = live.reduce((s, c) => s + c.change24h, 0) / n;
   const gainers = live.filter((c) => c.change24h >= 0).length;
-  const avgRsi = live.reduce((s, c) => s + c.rsi, 0) / n;
+  const avgRsi = computed.length ? computed.reduce((s, c) => s + c.rsi, 0) / computed.length : null;
   const hasData = live.length > 0;
   const updatedAt = query.dataUpdatedAt ? new Date(query.dataUpdatedAt).toLocaleTimeString("ru-RU") : null;
 
@@ -114,7 +138,7 @@ function Index() {
       cls: hasData ? (avgChange >= 0 ? "text-up" : "text-down") : "",
     },
     { label: "Растут / падают", value: hasData ? `${gainers} / ${live.length - gainers}` : dash },
-    { label: "Средний RSI (демо)", value: hasData ? avgRsi.toFixed(1) : dash },
+    { label: "Средний RSI 14 · 1ч", value: avgRsi !== null ? avgRsi.toFixed(1) : dash },
   ];
 
   const selectCls =
@@ -157,15 +181,24 @@ function Index() {
                 {hasData && updatedAt ? ` Показаны последние полученные данные от ${updatedAt}.` : ""}
               </div>
             </div>
-            <button
+            <Button variant="outline"
               onClick={() => query.refetch()}
               disabled={query.isFetching}
               className="h-9 rounded-md border border-border bg-card px-4 text-sm font-medium hover:bg-muted disabled:opacity-50"
             >
               {query.isFetching ? "Загрузка…" : "Повторить"}
-            </button>
+            </Button>
           </div>
         )}
+
+        <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted-foreground" aria-live="polite">
+          <span>Индикаторы 1ч: {computed.length} / {market.length}{indicatorsFetching ? " · Загрузка…" : ""}</span>
+          <span>Последний расчёт: {calculationTime ?? "Нет данных"}</span>
+          {indicatorFailures > 0 && <>
+            <span className="text-down">Нет данных для {indicatorFailures} монет</span>
+            <Button variant="outline" size="sm" disabled={indicatorsFetching} onClick={() => indicatorQueries.filter((result) => result.isError).forEach((result) => void result.refetch())}>Повторить расчёт</Button>
+          </>}
+        </div>
 
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3 text-sm">
           <span className="text-muted-foreground">
@@ -205,29 +238,30 @@ function Index() {
             <option value="up">Только рост</option>
             <option value="down">Только падение</option>
           </select>
-          <select value={signal} onChange={(e) => setSignal(e.target.value as Signal | "all")} className={selectCls}>
+          <select aria-label="ALTS Momentum" value={signal} onChange={(e) => setSignal(e.target.value as Signal | "all" | "missing")} className={selectCls}>
             <option value="all">Все сигналы</option>
-            <option value="BUY">Покупка</option>
-            <option value="SELL">Продажа</option>
-            <option value="HOLD">Держать</option>
+            <option value="ENTRY">Потенциальный вход</option>
+            <option value="WATCH">Наблюдение</option>
+            <option value="NONE">Нет сигнала</option>
+            <option value="missing">Нет данных</option>
           </select>
         </div>
 
         <div className="overflow-x-auto rounded-lg border border-border bg-card">
-          <table className="w-full min-w-[640px] text-sm">
+          <table className="w-full min-w-[980px] text-sm">
             <thead>
               <tr className="border-b border-border">
                 {COLUMNS.map((c) => (
                   <th key={c.key} className={`px-4 py-3 font-medium ${c.align ?? "text-left"}`}>
-                    <button
+                    <Button variant="ghost"
                       onClick={() => toggleSort(c.key)}
-                      className={`inline-flex items-center gap-1 text-xs uppercase tracking-wider transition-colors hover:text-foreground ${
+                      className={`h-auto p-0 inline-flex items-center gap-1 text-xs uppercase tracking-wider transition-colors hover:bg-transparent hover:text-foreground ${
                         sortKey === c.key ? "text-primary" : "text-muted-foreground"
                       }`}
                     >
                       {c.label}
                       <span className="w-3">{sortKey === c.key ? (dir === "asc" ? "▲" : "▼") : ""}</span>
-                    </button>
+                    </Button>
                   </th>
                 ))}
               </tr>
@@ -244,17 +278,34 @@ function Index() {
                     {pct(c.change24h)}
                   </td>
                   <td className="px-4 py-3 text-right font-mono">{compact(c.volume24h)}</td>
-                  <td className={`px-4 py-3 text-right font-mono ${rsiClass(c.rsi)}`}>{c.rsi}</td>
+                  <td className={`px-4 py-3 text-right font-mono ${c.rsi !== null ? rsiClass(c.rsi) : "text-muted-foreground"}`}>{c.rsi !== null ? c.rsi.toFixed(2) : "Нет данных"}</td>
+                  <td className="px-4 py-3 text-right font-mono">{c.ema20 !== null ? usd(c.ema20) : "Нет данных"}</td>
+                  <td className="px-4 py-3 text-right font-mono">{c.ema50 !== null ? usd(c.ema50) : "Нет данных"}</td>
                   <td className="px-4 py-3 text-right">
-                    <span className={`inline-block rounded border px-2 py-0.5 text-xs font-medium ${signalClass[c.signal]}`}>
-                      {signalLabel[c.signal]}
-                    </span>
+                    <div className="flex items-center justify-end gap-2">
+                      <span className={`inline-block whitespace-nowrap rounded border px-2 py-0.5 text-xs font-medium ${c.signal ? signalClass[c.signal] : "border-border text-muted-foreground"}`}>
+                        {c.signal ? momentumLabel[c.signal] : "Нет данных"}
+                      </span>
+                      <Popover>
+                        <PopoverTrigger asChild><Button variant="ghost" size="icon" className="h-7 w-7 shrink-0 text-muted-foreground" aria-label={`Причины сигнала ${c.ticker}`} title="Причины сигнала"><Info /></Button></PopoverTrigger>
+                        <PopoverContent className="max-w-[calc(100vw-32px)] text-xs" align="end">
+                          <div className="mb-2 font-medium">{c.ticker} · {c.signal ? momentumLabel[c.signal] : "Нет данных"}</div>
+                          {c.indicators ? <>
+                            <ul className="space-y-1">{c.indicators.reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul>
+                            <div className="mt-3 border-t border-border pt-2 text-muted-foreground">
+                              <div>Закрытие свечи: {new Date(c.indicators.candleClosedAt).toLocaleString("ru-RU")}</div>
+                              <div>Расчёт: {new Date(c.indicators.calculatedAt).toLocaleString("ru-RU")}</div>
+                            </div>
+                          </> : <p>{c.indicatorError}</p>}
+                        </PopoverContent>
+                      </Popover>
+                    </div>
                   </td>
                 </tr>
               ))}
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-10 text-center text-muted-foreground">
+                  <td colSpan={8} className="px-4 py-10 text-center text-muted-foreground">
                     {query.isPending ? (
                       <span className="inline-flex items-center gap-2">
                         <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
@@ -272,8 +323,15 @@ function Index() {
           </table>
         </div>
         <p className="mt-3 text-xs text-muted-foreground">
-          Цена, изменение и объём — данные Binance Spot (пары к USDT), обновление каждые 30 секунд. RSI и сигналы —
-          демонстрационные значения, не являются торговыми рекомендациями.
+          Цена, изменение и объём — Binance Spot (пары к USDT), обновление каждые 30 секунд.
+          RSI 14 (Уайлдер), EMA 20/50 и ALTS Momentum — по закрытым часовым свечам, обновление после закрытия часа.
+          Изменение за 24ч для сигнала считается между закрытиями свечей, а не по текущей котировке.
+        </p>
+        <p className="mt-2 text-xs text-muted-foreground">
+          Потенциальный вход: RSI 50–68, закрытие выше EMA 20, EMA 20 выше EMA 50, изменение за 24ч положительное.
+          Наблюдение: RSI 45–50 или 68–75 и хотя бы одно из этих трёх условий импульса, если вход не подтверждён.
+          Остальные случаи — нет сигнала. ALTS Momentum — исследовательская гипотеза, не торговая рекомендация;
+          прибыльность не доказана.
         </p>
       </div>
     </div>
