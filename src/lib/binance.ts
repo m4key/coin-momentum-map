@@ -1,4 +1,5 @@
-import { COINS, type Coin, type Signal } from "./coins";
+import { COIN_NAMES, type Coin } from "./coins";
+import type { Candle } from "./indicators";
 
 // Public Binance Spot market-data hosts (no API key). Second is the official market-data mirror.
 const HOSTS = ["https://api.binance.com", "https://data-api.binance.vision"];
@@ -29,17 +30,21 @@ export class BinanceError extends Error {
   }
 }
 
+let rateLimitedUntil = 0;
 async function getJson(path: string): Promise<unknown> {
+  if (Date.now() < rateLimitedUntil) throw new BinanceError("Пауза после ограничения Binance. Повторите позже.", "rate_limit");
   let lastErr = new BinanceError("Нет соединения с Binance", "network");
   for (const host of HOSTS) {
     let res: Response;
     try {
-      res = await fetch(`${host}${path}`);
+      res = await fetch(`${host}${path}`, { signal: AbortSignal.timeout(15_000) });
     } catch {
       lastErr = new BinanceError("Не удалось подключиться к Binance. Проверьте интернет-соединение.", "network");
       continue;
     }
     if (res.status === 429 || res.status === 418) {
+      const seconds = Number(res.headers.get("Retry-After"));
+      rateLimitedUntil = Date.now() + Math.max(60, Number.isFinite(seconds) ? seconds : 60) * 1000;
       // Rate limited: do not hammer the other host, surface immediately.
       throw new BinanceError("Превышен лимит запросов к Binance. Попробуйте чуть позже.", "rate_limit");
     }
@@ -94,20 +99,28 @@ export function isEligible(s: SymbolInfo): boolean {
   return true;
 }
 
-// Deterministic demo RSI per ticker (RSI is not real yet).
-function demoRsi(ticker: string): number {
-  let h = 0;
-  for (const ch of ticker) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
-  return 20 + (h % 61);
-}
-function demoSignal(rsi: number): Signal {
-  return rsi <= 35 ? "BUY" : rsi >= 70 ? "SELL" : "HOLD";
+// Binance has no multi-symbol klines endpoint: serialize and pace historical requests.
+let candleQueue: Promise<unknown> = Promise.resolve();
+export function fetchCandles(ticker: string): Promise<Candle[]> {
+  const task = candleQueue.then(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    const endTime = Math.floor(Date.now() / 3_600_000) * 3_600_000 - 1;
+    const data = await getJson(`/api/v3/klines?symbol=${encodeURIComponent(ticker + "USDT")}&interval=1h&limit=500&endTime=${endTime}`);
+    if (!Array.isArray(data)) throw new BinanceError("Некорректный ответ свечей Binance.", "data");
+    return data.map((row: unknown) => {
+      if (!Array.isArray(row) || row.length < 7) throw new BinanceError("Некорректная свеча Binance.", "data");
+      const candle = { openTime: Number(row[0]), close: Number(row[4]), closeTime: Number(row[6]) };
+      if (!Object.values(candle).every(Number.isFinite) || candle.close <= 0) throw new BinanceError("Некорректная свеча Binance.", "data");
+      return candle;
+    });
+  });
+  candleQueue = task.catch(() => undefined);
+  return task;
 }
 
 /** Eligible altcoins, top `limit` by 24h USDT volume, with live price/change/volume. */
 export function buildCoins(symbols: SymbolInfo[], tickers: Ticker[], limit = MAX_COINS): Coin[] {
   const tmap = new Map(tickers.map((t) => [t.symbol, t]));
-  const known = new Map(COINS.map((c) => [c.ticker, c]));
   const out: Coin[] = [];
   for (const s of symbols) {
     if (!isEligible(s)) continue;
@@ -117,16 +130,16 @@ export function buildCoins(symbols: SymbolInfo[], tickers: Ticker[], limit = MAX
     const change24h = Number(t.priceChangePercent);
     const volume24h = Number(t.quoteVolume);
     if (![price, change24h, volume24h].every(Number.isFinite) || price <= 0 || volume24h <= 0) continue;
-    const k = known.get(s.baseAsset);
-    const rsi = k?.rsi ?? demoRsi(s.baseAsset);
     out.push({
-      name: k?.name ?? s.baseAsset,
+      name: COIN_NAMES[s.baseAsset] ?? s.baseAsset,
       ticker: s.baseAsset,
       price,
       change24h,
       volume24h,
-      rsi,
-      signal: k?.signal ?? demoSignal(rsi),
+      rsi: null,
+      signal: null,
+      ema20: null,
+      ema50: null,
     });
   }
   return out.sort((a, b) => b.volume24h - a.volume24h).slice(0, limit);
