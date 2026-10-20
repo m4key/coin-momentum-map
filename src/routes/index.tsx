@@ -24,7 +24,7 @@ export const Route = createFileRoute("/")({
 });
 
 const usd = (n: number) =>
-  "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: n < 10 ? 4 : 2 });
+  "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: n < 0.01 ? Math.min(12, Math.max(6, Math.ceil(-Math.log10(n)) + 3)) : n < 10 ? 4 : 2 });
 const compact = (n: number) =>
   "$" + new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 2 }).format(n);
 const pct = (n: number) => `${n >= 0 ? "+" : ""}${n.toFixed(2)}%`;
@@ -231,7 +231,7 @@ function Index() {
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Поиск по названию или тикеру"
-            className={`${selectCls} flex-1 placeholder:text-muted-foreground`}
+            className={`${selectCls} min-h-10 sm:flex-1 placeholder:text-muted-foreground`}
           />
           <select value={change} onChange={(e) => setChange(e.target.value as ChangeFilter)} className={selectCls}>
             <option value="all">Любое изменение</option>
@@ -288,7 +288,7 @@ function Index() {
                       </span>
                       <Popover>
                         <PopoverTrigger asChild><Button variant="ghost" size="icon" className="h-7 w-7 shrink-0 text-muted-foreground" aria-label={`Причины сигнала ${c.ticker}`} title="Причины сигнала"><Info /></Button></PopoverTrigger>
-                        <PopoverContent className="max-w-[calc(100vw-32px)] text-xs" align="end">
+                        <PopoverContent className="max-w-[calc(100vw-32px)] bg-card text-foreground text-xs" align="end">
                           <div className="mb-2 font-medium">{c.ticker} · {c.signal ? momentumLabel[c.signal] : "Нет данных"}</div>
                           {c.indicators ? <>
                             <ul className="space-y-1">{c.indicators.reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul>

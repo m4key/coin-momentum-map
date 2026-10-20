@@ -1,4 +1,4 @@
-import { EMA, RSI } from "technicalindicators";
+import { EMA, AverageGain, AverageLoss } from "technicalindicators";
 
 export type Momentum = "ENTRY" | "WATCH" | "NONE";
 export interface Candle { openTime: number; closeTime: number; close: number }
@@ -21,9 +21,14 @@ export const momentumLabel: Record<Momentum, string> = {
 /** Wilder smoothing, seeded with the arithmetic mean of the first 14 deltas. */
 export function calculateRsi(closes: number[], period = 14): number | null {
   if (!Number.isInteger(period) || period < 1 || closes.length <= period || closes.some((v) => !Number.isFinite(v) || v <= 0)) return null;
-  // A completely flat series has neither gains nor losses: neutral RSI.
-  if (closes.every((v) => v === closes[0])) return 50;
-  return RSI.calculate({ values: closes, period }).at(-1) ?? null;
+  // Use the library's Wilder averages without its RSI output rounding;
+  // rounding before classification can move a value across a signal boundary.
+  const gain = AverageGain.calculate({ values: closes, period }).at(-1);
+  const loss = AverageLoss.calculate({ values: closes, period }).at(-1);
+  if (gain === undefined || loss === undefined) return null;
+  if (gain === 0 && loss === 0) return 50;
+  if (loss === 0) return 100;
+  return 100 - 100 / (1 + gain / loss);
 }
 
 /** EMA seeded with the SMA of the first period closes. */
@@ -45,7 +50,10 @@ export function calculateIndicators(candles: Candle[], now = Date.now()): Indica
   const closed = candles.filter((c) => c.closeTime < now).sort((a, b) => a.openTime - b.openTime);
   if (closed.length < 50) return null;
   // Reject malformed, duplicated or gapped history rather than inventing a result.
-  if (closed.some((c, i) => !Number.isFinite(c.openTime) || !Number.isFinite(c.closeTime) || c.closeTime !== c.openTime + 3_600_000 - 1 || (i > 0 && c.openTime !== closed[i - 1]?.openTime + 3_600_000))) return null;
+  if (closed.some((c, i) => {
+    const previous = closed[i - 1];
+    return !Number.isFinite(c.openTime) || !Number.isFinite(c.closeTime) || c.closeTime !== c.openTime + 3_600_000 - 1 || (i > 0 && (!previous || c.openTime !== previous.openTime + 3_600_000));
+  })) return null;
   const closes = closed.map((c) => c.close);
   const rsi = calculateRsi(closes);
   const ema20 = calculateEma(closes, 20);

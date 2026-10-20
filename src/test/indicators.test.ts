@@ -9,8 +9,8 @@ const candles = (n: number): Candle[] => Array.from({ length: n }, (_, i) => ({
 
 describe("Wilder RSI 14", () => {
   it("matches historical first and final worksheet values without intermediate rounding", () => {
-    expect(calculateRsi(historical.slice(0, 15))).toBeCloseTo(74.21, 2);
-    expect(calculateRsi(historical)).toBeCloseTo(44.52, 2);
+    expect(calculateRsi(historical.slice(0, 15))).toBeCloseTo(74.21383647798743, 10);
+    expect(calculateRsi(historical)).toBeCloseTo(44.524720536432, 10);
   });
   it("requires 14 changes, not 14 closes", () => expect(calculateRsi(historical.slice(0, 14))).toBeNull());
   it("handles all gains", () => expect(calculateRsi(Array.from({ length: 20 }, (_, i) => i + 1))).toBe(100));
