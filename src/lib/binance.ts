@@ -101,18 +101,23 @@ export function isEligible(s: SymbolInfo): boolean {
 
 // Binance has no multi-symbol klines endpoint: serialize and pace historical requests.
 let candleQueue: Promise<unknown> = Promise.resolve();
-export function fetchCandles(ticker: string): Promise<Candle[]> {
+export type Timeframe = "15m" | "1h" | "4h" | "1d";
+export const TIMEFRAME_MS: Record<Timeframe, number> = { "15m": 900_000, "1h": 3_600_000, "4h": 14_400_000, "1d": 86_400_000 };
+export interface MarketCandle extends Candle { open: number; high: number; low: number; volume: number }
+export function parseCandles(data: unknown): MarketCandle[] {
+  if (!Array.isArray(data)) throw new BinanceError("Некорректный ответ свечей Binance.", "data");
+  return data.map((row: unknown) => {
+    if (!Array.isArray(row) || row.length < 7) throw new BinanceError("Некорректная свеча Binance.", "data");
+    const candle = { openTime: Number(row[0]), open: Number(row[1]), high: Number(row[2]), low: Number(row[3]), close: Number(row[4]), volume: Number(row[5]), closeTime: Number(row[6]) };
+    if (!Object.values(candle).every(Number.isFinite) || Math.min(candle.open, candle.high, candle.low, candle.close) <= 0 || candle.volume < 0 || candle.high < Math.max(candle.open, candle.close, candle.low) || candle.low > Math.min(candle.open, candle.close) || candle.closeTime <= candle.openTime) throw new BinanceError("Некорректная свеча Binance.", "data");
+    return candle;
+  });
+}
+export function fetchCandles(ticker: string, timeframe: Timeframe = "1h", before?: number): Promise<MarketCandle[]> {
   const task = candleQueue.then(async () => {
     await new Promise((resolve) => setTimeout(resolve, 150));
-    const endTime = Math.floor(Date.now() / 3_600_000) * 3_600_000 - 1;
-    const data = await getJson(`/api/v3/klines?symbol=${encodeURIComponent(ticker + "USDT")}&interval=1h&limit=500&endTime=${endTime}`);
-    if (!Array.isArray(data)) throw new BinanceError("Некорректный ответ свечей Binance.", "data");
-    return data.map((row: unknown) => {
-      if (!Array.isArray(row) || row.length < 7) throw new BinanceError("Некорректная свеча Binance.", "data");
-      const candle = { openTime: Number(row[0]), close: Number(row[4]), closeTime: Number(row[6]) };
-      if (!Object.values(candle).every(Number.isFinite) || candle.close <= 0) throw new BinanceError("Некорректная свеча Binance.", "data");
-      return candle;
-    });
+    const endTime = before ?? Math.floor(Date.now() / TIMEFRAME_MS[timeframe]) * TIMEFRAME_MS[timeframe] - 1;
+    return parseCandles(await getJson(`/api/v3/klines?symbol=${encodeURIComponent(ticker + "USDT")}&interval=${timeframe}&limit=500&endTime=${endTime}`));
   });
   candleQueue = task.catch(() => undefined);
   return task;

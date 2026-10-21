@@ -10,5 +10,6 @@
 <!-- LOVABLE:END -->
 
 - Keep indicator math in browser-safe pure functions backed by technicalindicators, separate from Binance transport and query hooks, so calculations are independently testable.
-- Use serialized, paced per-symbol hourly kline queries with React Query caching; Binance has no multi-symbol kline endpoint. Market tickers remain bulk requests.
+- Use serialized, paced per-symbol kline queries with shared React Query candle caching for charts and hourly screener indicators; Binance has no multi-symbol kline endpoint. Market tickers remain bulk requests.
+- Render coin analysis in a modal to preserve screener state; dynamically import Lightweight Charts inside an effect and use one synchronized chart with candle, volume and RSI panes.
 - ALTS Momentum uses 24-hour close-to-close change from the same closed hourly history, not the continuously changing ticker, to keep confirmed signals consistent.
