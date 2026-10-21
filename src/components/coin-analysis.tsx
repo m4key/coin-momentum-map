@@ -8,6 +8,7 @@ import { fetchCandles, TIMEFRAME_MS, type MarketCandle, type Timeframe } from "@
 import { chartData } from "@/lib/chart-data";
 import type { Coin } from "@/lib/coins";
 import { MarketChart } from "./market-chart";
+import { ChartExplanation } from "./chart-explanation";
 
 const frames: { value: Timeframe; label: string }[] = [{ value: "15m", label: "15м" }, { value: "1h", label: "1ч" }, { value: "4h", label: "4ч" }, { value: "1d", label: "1д" }];
 
@@ -48,6 +49,7 @@ function AnalysisHistory({ ticker, timeframe }: { ticker: string; timeframe: Tim
       <span>{result.data?.candles.length ?? 0} закрытых свечей · {TIMEFRAME_MS[timeframe] / 60_000} мин</span>
       {result.data && result.data.candles.length < 50 && <span>Недостаточно истории для EMA 50</span>}
     </div>
+    <ChartExplanation ticker={ticker} timeframe={timeframe} candles={result.data?.candles ?? []} disabled={query.isError || !result.data || Boolean(result.error)} />
   </>;
 }
 
