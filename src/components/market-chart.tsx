@@ -79,8 +79,8 @@ export function MarketChart({ data }: { data: Data }) {
     previous.current = data;
   }, [data, ready]);
 
-  return <div>
-    <div className="min-h-16 py-2 font-mono text-xs leading-5 text-muted-foreground" aria-live="polite" data-testid="candle-values">{hover || "OHLC · EMA 20 · EMA 50 · Объём · RSI 14"}</div>
+  return <div className="min-w-0">
+    <div className="min-h-16 break-words py-2 font-mono text-xs leading-5 text-muted-foreground" aria-live="polite" data-testid="candle-values">{hover || "OHLC · EMA 20 · EMA 50 · Объём · RSI 14"}</div>
     <div ref={container} className="h-[560px] w-full sm:h-[650px]" aria-label="Свечной график, объём и RSI 14" />
   </div>;
 }

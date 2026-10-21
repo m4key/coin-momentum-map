@@ -54,7 +54,7 @@ function AnalysisHistory({ ticker, timeframe }: { ticker: string; timeframe: Tim
 export function CoinAnalysis({ coin, onClose }: { coin: Coin | null; onClose: () => void }) {
   const [timeframe, setTimeframe] = useState<Timeframe>("1h");
   return <Dialog open={coin !== null} onOpenChange={(open) => { if (!open) onClose(); }}>
-    <DialogContent className="max-h-[95dvh] w-[calc(100%-24px)] max-w-6xl overflow-y-auto p-4 sm:p-6">
+    <DialogContent className="max-h-[95dvh] w-[calc(100%-24px)] max-w-6xl overflow-x-hidden overflow-y-auto p-4 sm:p-6 [&>*]:min-w-0">
       {coin && <>
         <div className="flex flex-wrap items-start justify-between gap-3 pr-6">
           <div><DialogTitle className="font-mono text-xl">{coin.name} <span className="text-sm text-muted-foreground">{coin.ticker}USDT</span></DialogTitle><DialogDescription className="mt-2">Binance Spot</DialogDescription></div>
