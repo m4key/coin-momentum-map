@@ -1,14 +1,16 @@
-import { useQueries } from "@tanstack/react-query";
-import { BinanceError, fetchCandles } from "@/lib/binance";
+import { useQueries, useQueryClient } from "@tanstack/react-query";
+import { BinanceError } from "@/lib/binance";
+import { candleOptions } from "@/lib/candle-query";
 import { calculateIndicators } from "@/lib/indicators";
 import type { Coin } from "@/lib/coins";
 
 export function useIndicators(coins: Coin[]) {
+  const queryClient = useQueryClient();
   return useQueries({
     queries: coins.map((coin) => ({
       queryKey: ["binance-indicators", "1h", coin.ticker],
       queryFn: async () => {
-        const candles = await fetchCandles(coin.ticker);
+        const candles = await queryClient.fetchQuery(candleOptions(coin.ticker, "1h"));
         const indicators = calculateIndicators(candles);
         if (!indicators) throw new BinanceError("Недостаточно корректных закрытых часовых свечей (минимум 50).", "data");
         return indicators;

@@ -8,6 +8,7 @@ import { momentumLabel } from "@/lib/indicators";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Info } from "lucide-react";
+import { CoinAnalysis } from "@/components/coin-analysis";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -56,6 +57,7 @@ function Index() {
   const [signal, setSignal] = useState<Signal | "all" | "missing">("all");
   const [sortKey, setSortKey] = useState<SortKey>("volume24h");
   const [dir, setDir] = useState<"asc" | "desc">("desc");
+  const [selectedTicker, setSelectedTicker] = useState<string | null>(null);
 
   const retry = (n: number, err: Error) => !(err instanceof BinanceError && err.kind === "rate_limit") && n < 1;
   // Pair list changes rarely: load once, refresh hourly.
@@ -271,7 +273,7 @@ function Index() {
                 <tr key={c.ticker} className="border-b border-border last:border-0 transition-colors hover:bg-muted/50">
                   <td className="px-4 py-3">
                     <div className="font-medium">{c.name}</div>
-                    <div className="font-mono text-xs text-muted-foreground">{c.ticker}</div>
+                    <Button variant="link" className="h-auto p-0 font-mono text-xs text-muted-foreground hover:text-primary" aria-label={`График ${c.ticker}USDT`} onClick={() => setSelectedTicker(c.ticker)}>{c.ticker}</Button>
                   </td>
                   <td className="px-4 py-3 text-right font-mono">{usd(c.price)}</td>
                   <td className={`px-4 py-3 text-right font-mono ${c.change24h >= 0 ? "text-up" : "text-down"}`}>
@@ -334,6 +336,7 @@ function Index() {
           прибыльность не доказана.
         </p>
       </div>
+      <CoinAnalysis coin={market.find((coin) => coin.ticker === selectedTicker) ?? null} onClose={() => setSelectedTicker(null)} />
     </div>
   );
 }

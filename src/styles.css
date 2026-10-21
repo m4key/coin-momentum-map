@@ -88,6 +88,8 @@
   --ring: oklch(0.8 0.15 85);
   --up: oklch(0.75 0.17 155);
   --down: oklch(0.66 0.2 22);
+  --chart-ema50: oklch(0.76 0.12 215);
+  --chart-rsi: oklch(0.78 0.13 335);
 }
 
 .dark {
