@@ -8,3 +8,7 @@
 - [x] Test calculations, timeframe/coin switching and mobile charts.
 - [x] Add AI Gateway explanation using selected chart's real closed candles.
 - [x] Verify analysis generation and data validation.
+- [ ] Load top-200 by market cap with asset exclusions and explicit Binance mappings.
+- [ ] Add sidebar, dashboard and chart selection while preserving existing screener.
+- [ ] Add historical Risk Screener with transparent scenarios and filters.
+- [ ] Verify data, scenario tests and desktop/mobile flows.
