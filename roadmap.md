@@ -6,5 +6,5 @@
 - [x] Add shared OHLCV history loading for 15m, 1h, 4h and 1d.
 - [x] Add ticker analysis panel with interactive candles, EMA, volume and RSI.
 - [x] Test calculations, timeframe/coin switching and mobile charts.
-- [ ] Add AI Gateway explanation using selected chart's real closed candles.
-- [ ] Verify analysis generation and data validation.
+- [x] Add AI Gateway explanation using selected chart's real closed candles.
+- [x] Verify analysis generation and data validation.
