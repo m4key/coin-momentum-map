@@ -5,6 +5,7 @@ export interface Coin {
   name: string;
   ticker: string;
   price: number;
+  marketCap?: number;
   change24h: number;
   volume24h: number;
   rsi: number | null;
@@ -19,7 +20,7 @@ export const COIN_NAMES: Record<string, string> = {
   BTC: "Bitcoin", ETH: "Ethereum", SOL: "Solana", SUI: "Sui", LINK: "Chainlink",
 };
 
-export type SortKey = "name" | "price" | "change24h" | "volume24h" | "rsi" | "ema20" | "ema50" | "signal";
+export type SortKey = "marketCap" | "name" | "price" | "change24h" | "volume24h" | "rsi" | "ema20" | "ema50" | "signal";
 export type ChangeFilter = "all" | "up" | "down";
 
 export function filterCoins(coins: Coin[], q: string, change: ChangeFilter, signal: Signal | "all" | "missing") {
@@ -37,9 +38,9 @@ export function sortCoins(coins: Coin[], key: SortKey, dir: "asc" | "desc") {
   return [...coins].sort((a, b) => {
     const va = key === "name" ? a.name : a[key];
     const vb = key === "name" ? b.name : b[key];
-    if (va === null && vb === null) return 0;
-    if (va === null) return 1;
-    if (vb === null) return -1;
+    if (va == null && vb == null) return 0;
+    if (va == null) return 1;
+    if (vb == null) return -1;
     if (typeof va === "string") return va.localeCompare(vb as string) * m;
     return ((va as number) - (vb as number)) * m;
   });

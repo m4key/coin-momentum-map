@@ -9,13 +9,15 @@ import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Info } from "lucide-react";
 import { CoinAnalysis } from "@/components/coin-analysis";
+import { useMarkets } from "@/hooks/use-markets";
+import { selectTopAssets } from "@/lib/market-assets";
 
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Crypto Metrics — скринер альткоинов" },
-      { name: "description", content: "Скринер альткоинов Binance Spot: реальные котировки, часовой RSI 14, EMA 20/50 и исследовательский ALTS Momentum." },
-      { property: "og:title", content: "Crypto Metrics — скринер альткоинов" },
+      { title: "Crypto Metrics — топ-200 криптовалют" },
+      { name: "description", content: "Топ-200 CoinGecko и графики Binance Spot: реальные котировки, часовой RSI 14, EMA 20/50 и исследовательский ALTS Momentum." },
+      { property: "og:title", content: "Crypto Metrics — топ-200 криптовалют" },
       { property: "og:description", content: "Анализ альткоинов и поиск торговых возможностей." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
@@ -34,7 +36,8 @@ const COLUMNS: { key: SortKey; label: string; align?: string }[] = [
   { key: "name", label: "Монета" },
   { key: "price", label: "Цена", align: "text-right" },
   { key: "change24h", label: "24ч", align: "text-right" },
-  { key: "volume24h", label: "Объём 24ч", align: "text-right" },
+  { key: "volume24h", label: "Объём 24ч · рынок", align: "text-right" },
+  { key: "marketCap", label: "Капитализация", align: "text-right" },
   { key: "rsi", label: "RSI 14 · 1ч", align: "text-right" },
   { key: "ema20", label: "EMA 20 · 1ч", align: "text-right" },
   { key: "ema50", label: "EMA 50 · 1ч", align: "text-right" },
@@ -55,7 +58,9 @@ function Index() {
   const [q, setQ] = useState("");
   const [change, setChange] = useState<ChangeFilter>("all");
   const [signal, setSignal] = useState<Signal | "all" | "missing">("all");
-  const [sortKey, setSortKey] = useState<SortKey>("volume24h");
+  const [sortKey, setSortKey] = useState<SortKey>("marketCap");
+  const [manualExclusions, setManualExclusions] = useState("");
+  const marketsQuery = useMarkets();
   const [dir, setDir] = useState<"asc" | "desc">("desc");
   const [selectedTicker, setSelectedTicker] = useState<string | null>(null);
 
@@ -87,23 +92,16 @@ function Index() {
     refetch: () => (symbolsQuery.isError ? symbolsQuery.refetch() : tickersQuery.refetch()),
   };
 
-  const market = useMemo(
-    () => (symbolsQuery.data && tickersQuery.data ? buildCoins(symbolsQuery.data, tickersQuery.data) : []),
-    [symbolsQuery.data, tickersQuery.data],
-  );
-  const indicatorQueries = useIndicators(market);
-  const live = market.map((coin, i) => {
-    const result = indicatorQueries[i];
+  const market = useMemo(() => selectTopAssets(marketsQuery.data?.assets ?? [], [], manualExclusions.split(",").map((id) => id.trim())), [marketsQuery.data, manualExclusions]);
+  const active = new Set(symbolsQuery.data?.filter((s) => s.quoteAsset === "USDT" && s.status === "TRADING" && s.isSpotTradingAllowed !== false).map((s) => s.baseAsset));
+  const matched = market.filter((c) => c.binanceTicker && active.has(c.binanceTicker)).map((c) => ({ ...c, ticker: c.binanceTicker ?? c.ticker }));
+  const indicatorQueries = useIndicators(matched);
+  const live = market.map((coin) => {
+    const index = matched.findIndex((c) => c.id === coin.id);
+    const result = index >= 0 ? indicatorQueries[index] : undefined;
     const indicators = result?.isError ? null : result?.data;
-    // Old values must not masquerade as a current confirmed signal after refresh failures.
     const current = indicators && Date.now() < indicators.candleClosedAt + 3_600_000 + 60_000 ? indicators : null;
-    return {
-      ...coin, indicators: current,
-      rsi: current?.rsi ?? null, ema20: current?.ema20 ?? null, ema50: current?.ema50 ?? null,
-      signal: current?.signal ?? null,
-      indicatorError: result?.isError && result.error instanceof Error ? result.error.message :
-        result?.isPending ? "Загрузка часовых свечей…" : "Нет актуальных закрытых свечей.",
-    };
+    return { ...coin, indicators: current, rsi: current?.rsi ?? null, ema20: current?.ema20 ?? null, ema50: current?.ema50 ?? null, signal: current?.signal ?? null, indicatorError: index < 0 ? "Нет подтверждённого соответствия Binance USDT; подстановка по похожему тикеру запрещена." : result?.error?.message ?? "Загрузка часовых свечей…" };
   });
   const computed = live.flatMap((c) => c.indicators ? [c.indicators] : []);
   const calculationTime = computed.length ? new Date(Math.max(...computed.map((c) => c.calculatedAt))).toLocaleTimeString("ru-RU") : null;
@@ -121,7 +119,7 @@ function Index() {
   const gainers = live.filter((c) => c.change24h >= 0).length;
   const avgRsi = computed.length ? computed.reduce((s, c) => s + c.rsi, 0) / computed.length : null;
   const hasData = live.length > 0;
-  const updatedAt = query.dataUpdatedAt ? new Date(query.dataUpdatedAt).toLocaleTimeString("ru-RU") : null;
+  const updatedAt = marketsQuery.data?.fetchedAt ? new Date(marketsQuery.data.fetchedAt).toLocaleTimeString("ru-RU") : null;
 
   const toggleSort = (k: SortKey) => {
     if (k === sortKey) setDir(dir === "asc" ? "desc" : "asc");
@@ -133,7 +131,7 @@ function Index() {
 
   const dash = "—";
   const summary = [
-    { label: "Объём 24ч", value: hasData ? compact(totalVol) : dash },
+    { label: "Объём 24ч · рынок", value: hasData ? compact(totalVol) : dash },
     {
       label: "Среднее изменение",
       value: hasData ? pct(avgChange) : dash,
@@ -159,7 +157,7 @@ function Index() {
               {query.isFetching && (
                 <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-primary border-t-transparent" />
               )}
-              <span>Данные Binance Spot</span>
+              <span>Данные CoinGecko</span>
               <span>·</span>
               <span>{updatedAt ? `Обновлено: ${updatedAt}` : "Загрузка…"}</span>
             </div>
@@ -174,6 +172,11 @@ function Index() {
           </div>
         </header>
 
+        {(marketsQuery.data?.error || marketsQuery.isError) && <div role="alert" className="mb-4 border-l-2 border-down bg-down/10 p-3 text-sm text-down">{marketsQuery.data?.error || "Не удалось получить CoinGecko"}<Button variant="outline" size="sm" className="ml-3" onClick={() => void marketsQuery.refetch()}>Повторить</Button></div>}
+        <div className="mb-4 space-y-2 text-xs text-muted-foreground">
+          <p>Акции и токенизированные ETF исключаются по категориям CoinGecko и списку ID. {marketsQuery.data?.classificationComplete ? "Категории загружены." : "Категории недоступны; действует дополнительный список исключений."} Полнота классификации не гарантируется.</p>
+          <input aria-label="Ручные исключения" placeholder="Исключить ID CoinGecko через запятую" value={manualExclusions} onChange={(e) => setManualExclusions(e.target.value)} className="h-8 w-full rounded border border-border bg-card px-3 sm:max-w-md" />
+        </div>
         {query.isError && (
           <div className="mb-4 flex flex-col gap-3 rounded-lg border border-down/40 bg-down/10 p-4 text-sm sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -206,7 +209,7 @@ function Index() {
           <span className="text-muted-foreground">
             Монет в таблице: <span className="font-mono text-foreground">{rows.length}</span>
             {hasData && rows.length !== live.length && <> из <span className="font-mono">{live.length}</span></>}
-            <span className="ml-2 text-xs">(топ по объёму, без BTC, ETH и стейблкоинов)</span>
+            <span className="ml-2 text-xs">(топ-200 по капитализации)</span>
           </span>
           <select
             aria-label="Сортировка"
@@ -218,11 +221,13 @@ function Index() {
             }}
             className={selectCls}
           >
+            <option value="marketCap:desc">Капитализация: по убыванию</option>
+            <option value="marketCap:asc">Капитализация: по возрастанию</option>
             <option value="volume24h:desc">Объём: по убыванию</option>
             <option value="volume24h:asc">Объём: по возрастанию</option>
             <option value="change24h:desc">Изменение 24ч: лидеры роста</option>
             <option value="change24h:asc">Изменение 24ч: лидеры падения</option>
-            {!["volume24h", "change24h"].includes(sortKey) && (
+            {!["marketCap", "volume24h", "change24h"].includes(sortKey) && (
               <option value={`${sortKey}:${dir}`}>Другая сортировка (по столбцу)</option>
             )}
           </select>
@@ -270,16 +275,17 @@ function Index() {
             </thead>
             <tbody>
               {rows.map((c) => (
-                <tr key={c.ticker} className="border-b border-border last:border-0 transition-colors hover:bg-muted/50">
+                <tr key={c.id} className="border-b border-border last:border-0 transition-colors hover:bg-muted/50">
                   <td className="px-4 py-3">
-                    <div className="font-medium">{c.name}</div>
-                    <Button variant="link" className="h-auto p-0 font-mono text-xs text-muted-foreground hover:text-primary" aria-label={`График ${c.ticker}USDT`} onClick={() => setSelectedTicker(c.ticker)}>{c.ticker}</Button>
+                    <div className="flex items-center gap-2"><img src={c.image} alt="" className="size-6 rounded-full" loading="lazy" onError={(e) => { e.currentTarget.style.visibility = "hidden"; }} /><span className="font-medium">{c.name}</span></div>
+                    <Button variant="link" className="h-auto p-0 font-mono text-xs text-muted-foreground hover:text-primary" disabled={!c.binanceTicker || !active.has(c.binanceTicker)} title={!c.binanceTicker ? "Нет подтверждённой пары Binance" : "График"} aria-label={`График ${c.binanceTicker ?? c.ticker}USDT`} onClick={() => setSelectedTicker(c.id)}>{c.ticker}</Button>
                   </td>
                   <td className="px-4 py-3 text-right font-mono">{usd(c.price)}</td>
                   <td className={`px-4 py-3 text-right font-mono ${c.change24h >= 0 ? "text-up" : "text-down"}`}>
                     {pct(c.change24h)}
                   </td>
                   <td className="px-4 py-3 text-right font-mono">{compact(c.volume24h)}</td>
+                  <td className="px-4 py-3 text-right font-mono">{compact(c.marketCap)}</td>
                   <td className={`px-4 py-3 text-right font-mono ${c.rsi !== null ? rsiClass(c.rsi) : "text-muted-foreground"}`}>{c.rsi !== null ? c.rsi.toFixed(2) : "Нет данных"}</td>
                   <td className="px-4 py-3 text-right font-mono">{c.ema20 !== null ? usd(c.ema20) : "Нет данных"}</td>
                   <td className="px-4 py-3 text-right font-mono">{c.ema50 !== null ? usd(c.ema50) : "Нет данных"}</td>
@@ -307,14 +313,14 @@ function Index() {
               ))}
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="px-4 py-10 text-center text-muted-foreground">
-                    {query.isPending ? (
+                  <td colSpan={9} className="px-4 py-10 text-center text-muted-foreground">
+                    {marketsQuery.isPending ? (
                       <span className="inline-flex items-center gap-2">
                         <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-                        Загрузка данных Binance…
+                        Загрузка CoinGecko…
                       </span>
                     ) : !hasData ? (
-                      "Нет данных: Binance недоступен."
+                      "Нет данных: источник недоступен."
                     ) : (
                       "Ничего не найдено"
                     )}
@@ -325,7 +331,7 @@ function Index() {
           </table>
         </div>
         <p className="mt-3 text-xs text-muted-foreground">
-          Цена, изменение и объём — Binance Spot (пары к USDT), обновление каждые 30 секунд.
+          Цена, изменение, объём рынка и капитализация — CoinGecko (USD), обновление каждые 2 минуты; это не объём одной биржи. Графики — только подтверждённые пары Binance Spot USDT.
           RSI 14 (Уайлдер), EMA 20/50 и ALTS Momentum — по закрытым часовым свечам, обновление после закрытия часа.
           Изменение за 24ч для сигнала считается между закрытиями свечей, а не по текущей котировке.
         </p>
@@ -336,7 +342,7 @@ function Index() {
           прибыльность не доказана.
         </p>
       </div>
-      <CoinAnalysis coin={market.find((coin) => coin.ticker === selectedTicker) ?? null} onClose={() => setSelectedTicker(null)} />
+      <CoinAnalysis coin={matched.find((coin) => coin.id === selectedTicker) ?? null} onClose={() => setSelectedTicker(null)} />
     </div>
   );
 }
