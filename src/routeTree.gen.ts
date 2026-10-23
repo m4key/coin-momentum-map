@@ -10,18 +10,12 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as ChartsRouteImport } from './routes/charts'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as RiskRouteImport } from './routes/risk'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ChartsRoute = ChartsRouteImport.update({
-  id: '/charts',
-  path: '/charts',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DashboardRoute = DashboardRouteImport.update({
@@ -37,34 +31,30 @@ const RiskRoute = RiskRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/charts': typeof ChartsRoute
   '/dashboard': typeof DashboardRoute
   '/risk': typeof RiskRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/charts': typeof ChartsRoute
   '/dashboard': typeof DashboardRoute
   '/risk': typeof RiskRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/charts': typeof ChartsRoute
   '/dashboard': typeof DashboardRoute
   '/risk': typeof RiskRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/charts' | '/dashboard' | '/risk'
+  fullPaths: '/' | '/dashboard' | '/risk'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/charts' | '/dashboard' | '/risk'
-  id: '__root__' | '/' | '/charts' | '/dashboard' | '/risk'
+  to: '/' | '/dashboard' | '/risk'
+  id: '__root__' | '/' | '/dashboard' | '/risk'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  ChartsRoute: typeof ChartsRoute
   DashboardRoute: typeof DashboardRoute
   RiskRoute: typeof RiskRoute
 }
@@ -76,13 +66,6 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/charts': {
-      id: '/charts'
-      path: '/charts'
-      fullPath: '/charts'
-      preLoaderRoute: typeof ChartsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/dashboard': {
@@ -104,7 +87,6 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  ChartsRoute: ChartsRoute,
   DashboardRoute: DashboardRoute,
   RiskRoute: RiskRoute,
 }

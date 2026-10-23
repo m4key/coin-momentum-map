@@ -5,7 +5,7 @@ import type { chartData } from "@/lib/chart-data";
 type Data = ReturnType<typeof chartData>;
 const number = (n: number) => n.toLocaleString("en-US", { maximumSignificantDigits: 7 });
 
-export function MarketChart({ data, mode = "candles", levels = [], currentPrice }: { data: Data; mode?: "candles" | "area"; levels?: { price: number; title: string; token: string }[]; currentPrice?: number }) {
+export function MarketChart({ data, mode = "candles", levels = [], currentPrice, currentPriceLabel = "Текущая · CG", overview = false }: { data: Data; mode?: "candles" | "area"; levels?: { price: number; title: string; token: string }[]; currentPrice?: number; currentPriceLabel?: string; overview?: boolean }) {
   const container = useRef<HTMLDivElement>(null);
   const api = useRef<{ chart: IChartApi; candle: ISeriesApi<"Candlestick">; volume: ISeriesApi<"Histogram">; ema20: ISeriesApi<"Line">; ema50: ISeriesApi<"Line">; rsi: ISeriesApi<"Line">; up: string; down: string } | null>(null);
   const [ready, setReady] = useState(false);
@@ -57,7 +57,7 @@ export function MarketChart({ data, mode = "candles", levels = [], currentPrice 
       const volume = chart.addSeries(lc.HistogramSeries, { priceFormat: { type: "volume" }, priceLineVisible: false }, 1);
       const rsi = chart.addSeries(lc.LineSeries, { color: color("--chart-rsi"), lineWidth: 2, priceFormat: { type: "price", precision: 2, minMove: 0.01 }, priceLineVisible: false, autoscaleInfoProvider: () => ({ priceRange: { minValue: 0, maxValue: 100 } }) }, 2);
       for (const level of [30, 50, 70]) rsi.createPriceLine({ price: level, color: muted, lineWidth: 1, lineStyle: lc.LineStyle.Dashed, axisLabelVisible: true, title: "" });
-      chart.panes()[0]?.setStretchFactor(5);
+      chart.panes()[0]?.setStretchFactor(overview ? 9 : 5);
       chart.panes()[1]?.setStretchFactor(1.3);
       chart.panes()[2]?.setStretchFactor(2);
       chart.subscribeCrosshairMove((param) => {
@@ -96,19 +96,19 @@ export function MarketChart({ data, mode = "candles", levels = [], currentPrice 
     a.ema50.setData(data.ema50.map((p) => ({ ...p, time: p.time as UTCTimestamp })));
     a.rsi.setData(data.rsi.map((p) => ({ ...p, time: p.time as UTCTimestamp })));
     if (previous.current && range) a.chart.timeScale().setVisibleRange(range);
-    else a.chart.timeScale().setVisibleLogicalRange({ from: Math.max(0, data.candles.length - 120), to: data.candles.length + 3 });
+    else a.chart.timeScale().setVisibleLogicalRange({ from: overview ? 0 : Math.max(0, data.candles.length - 120), to: data.candles.length + 3 });
     previous.current = data;
-  }, [data, ready, levels, currentPrice]);
+  }, [data, ready, levels, currentPrice, overview]);
 
   useEffect(() => {
     const series = levelSeries.current;
     if (!ready || !series) return;
-    const lines = [...levels, ...(currentPrice ? [{ price: currentPrice, title: "Текущая · CG", token: "--foreground" }] : [])].map((l) => series.createPriceLine({ price: l.price, title: l.title, color: resolveColor.current(l.token), lineWidth: 1, lineStyle: 2, axisLabelVisible: true }));
+    const lines = [...levels, ...(currentPrice ? [{ price: currentPrice, title: currentPriceLabel, token: "--foreground" }] : [])].map((l) => series.createPriceLine({ price: l.price, title: l.title, color: resolveColor.current(l.token), lineWidth: 1, lineStyle: 2, axisLabelVisible: true }));
     return () => { if (levelSeries.current === series) lines.forEach((line) => series.removePriceLine(line)); };
-  }, [levels, currentPrice, ready]);
+  }, [levels, currentPrice, currentPriceLabel, ready]);
 
   return <div className="min-w-0">
-    <div className="min-h-16 break-words py-2 font-mono text-xs leading-5 text-muted-foreground" aria-live="polite" data-testid="candle-values">{hover || "OHLC · EMA 20 · EMA 50 · Объём · RSI 14"}</div>
-    <div ref={container} className="h-[560px] w-full sm:h-[650px]" aria-label="Свечной график, объём и RSI 14" />
+    <div className="min-h-10 break-words py-2 font-mono text-xs leading-5 text-muted-foreground" aria-live="polite" data-testid="candle-values">{hover || "OHLC · EMA 20 · EMA 50 · Объём · RSI 14"}</div>
+    <div ref={container} className={overview ? "h-[520px] w-full sm:h-[700px]" : "h-[560px] w-full sm:h-[650px]"} aria-label="Свечной график, объём и RSI 14" />
   </div>;
 }

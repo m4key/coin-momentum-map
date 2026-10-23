@@ -16,3 +16,5 @@
 - AI explanations run only on explicit user action through a server function using the AI Gateway SDK; validate chart snapshots and recompute indicators server-side so prompts use bounded numeric market data, never client-written instructions.
 - Market capitalization rankings and aggregate USD quotes come from CoinGecko via a cached public server function; Binance charts require explicit CoinGecko-ID mappings and active exchange symbols to prevent ticker collisions.
 - Risk scenarios are pure historical calculations over closed candles, with source labels separating aggregate USD current prices from Binance USDT history; levels are conditional references, not probability estimates.
+- Risk Screener anchors USDT scenario prices to the shared bulk Binance ticker cache, never aggregate USD; one shared risk presentation map links table, legend and chart tokens to keep colors consistent.
+- Keep the disabled Dashboard URL as a redirect to the screener; standalone Charts is removed while shared analysis/chart modules remain available to active pages.
