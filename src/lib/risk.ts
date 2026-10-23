@@ -1,6 +1,13 @@
 import type { MarketCandle } from "./binance";
 export type RiskLevel = "conservative" | "moderate" | "high" | "extreme";
-export const riskLabels: Record<RiskLevel, string> = { conservative: "Консервативный", moderate: "Умеренный", high: "Повышенный риск", extreme: "Экстремальный сценарий" };
+export const riskLabels: Record<RiskLevel, string> = { conservative: "Консервативный", moderate: "Умеренный", high: "Повышенный", extreme: "Экстремальный" };
+export const riskLevels: RiskLevel[] = ["conservative", "moderate", "high", "extreme"];
+export const riskAppearance: Record<RiskLevel, { text: string; background: string; token: string }> = {
+  conservative: { text: "text-risk-conservative", background: "bg-risk-conservative", token: "--risk-conservative" },
+  moderate: { text: "text-risk-moderate", background: "bg-risk-moderate", token: "--risk-moderate" },
+  high: { text: "text-risk-high", background: "bg-risk-high", token: "--risk-high" },
+  extreme: { text: "text-risk-extreme", background: "bg-risk-extreme", token: "--risk-extreme" },
+};
 export interface Scenario { level: RiskLevel; name: string; price: number; growth: number; multiple: number; kind: "Исторический уровень" | "Расчётный сценарий"; basis: string }
 export function riskScenarios(candles: MarketCandle[], current: number, now = Date.now()) {
   const closed = candles.filter((c) => c.closeTime < now).sort((a, b) => a.openTime - b.openTime);
