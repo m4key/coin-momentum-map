@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
-import { LayoutDashboard, Table2, ChartCandlestick, ShieldCheck } from "lucide-react";
+import { Table2, ShieldCheck } from "lucide-react";
 import type { ReactNode } from "react";
-const items = [{ to: "/dashboard", label: "Dashboard", icon: LayoutDashboard }, { to: "/", label: "Crypto Screener", icon: Table2 }, { to: "/charts", label: "Charts", icon: ChartCandlestick }, { to: "/risk", label: "Risk Screener", icon: ShieldCheck }] as const;
+const items = [{ to: "/", label: "Crypto Screener", icon: Table2 }, { to: "/risk", label: "Risk Screener", icon: ShieldCheck }] as const;
 export function AppNavigation({ children }: { children: ReactNode }) {
   return <div className="min-h-screen lg:flex">
     <aside className="border-b border-border bg-card lg:fixed lg:inset-y-0 lg:w-52 lg:border-b-0 lg:border-r">

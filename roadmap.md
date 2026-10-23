@@ -12,3 +12,6 @@
 - [x] Add sidebar, dashboard and chart selection while preserving existing screener.
 - [x] Add historical Risk Screener with transparent scenarios and filters.
 - [x] Verify data, scenario tests and desktop/mobile flows.
+- [ ] Remove standalone Charts and disable Dashboard; preserve shared charts.
+- [ ] Widen Risk Screener chart, compact scenario rows and synchronize colors/source prices.
+- [ ] Verify real coin, period, mode switching and mobile layout; run regression tests.
