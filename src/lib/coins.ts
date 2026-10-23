@@ -23,7 +23,7 @@ export const COIN_NAMES: Record<string, string> = {
 export type SortKey = "marketCap" | "name" | "price" | "change24h" | "volume24h" | "rsi" | "ema20" | "ema50" | "signal";
 export type ChangeFilter = "all" | "up" | "down";
 
-export function filterCoins(coins: Coin[], q: string, change: ChangeFilter, signal: Signal | "all" | "missing") {
+export function filterCoins<T extends Coin>(coins: T[], q: string, change: ChangeFilter, signal: Signal | "all" | "missing") {
   const s = q.trim().toLowerCase();
   return coins.filter(
     (c) =>
@@ -33,7 +33,7 @@ export function filterCoins(coins: Coin[], q: string, change: ChangeFilter, sign
   );
 }
 
-export function sortCoins(coins: Coin[], key: SortKey, dir: "asc" | "desc") {
+export function sortCoins<T extends Coin>(coins: T[], key: SortKey, dir: "asc" | "desc") {
   const m = dir === "asc" ? 1 : -1;
   return [...coins].sort((a, b) => {
     const va = key === "name" ? a.name : a[key];

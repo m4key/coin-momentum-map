@@ -3,8 +3,9 @@ import { z } from "zod";
 import { BINANCE_ASSETS, selectTopAssets, type MarketAsset } from "./market-assets";
 
 const rowSchema = z.object({ id: z.string(), symbol: z.string(), name: z.string(), image: z.string(), current_price: z.number().nonnegative().nullable(), market_cap: z.number().nonnegative().nullable(), market_cap_rank: z.number().nullable(), price_change_percentage_24h: z.number().nullable(), total_volume: z.number().nullable(), last_updated: z.string() });
-let cached: { assets: MarketAsset[]; excluded: string[]; classificationComplete: boolean; fetchedAt: number } | null = null;
-let pending: Promise<NonNullable<typeof cached>> | null = null;
+interface MarketCache { assets: MarketAsset[]; excluded: string[]; classificationComplete: boolean; fetchedAt: number }
+let cached: MarketCache | null = null;
+let pending: Promise<MarketCache> | null = null;
 let pausedUntil = 0;
 async function publicJson(path: string) {
   if (Date.now() < pausedUntil) throw new Error("CoinGecko ограничил запросы. Повторите позже.");
@@ -23,11 +24,15 @@ export const getMarkets = createServerFn({ method: "GET" }).handler(async () => 
         if (!classificationComplete) {
           try {
             const categories = z.array(z.object({ category_id: z.string(), name: z.string() })).parse(await publicJson("/coins/categories/list"));
-            const ids = categories.filter((c) => /tokenized (stocks?|etfs?|equities)|tokenized stock/i.test(c.name)).map((c) => c.category_id);
+            const ids = categories.filter((c) => ["tokenized-stock", "tokenized-exchange-traded-funds-etfs"].includes(c.category_id)).map((c) => c.category_id);
             const collected: string[] = [];
             for (const category of ids) {
-              const members = z.array(z.object({ id: z.string() })).parse(await publicJson(`/coins/markets?vs_currency=usd&category=${encodeURIComponent(category)}&per_page=250&page=1`));
-              collected.push(...members.map((c) => c.id));
+              for (let page = 1; page <= 10; page++) {
+                const members = z.array(z.object({ id: z.string() })).parse(await publicJson(`/coins/markets?vs_currency=usd&category=${encodeURIComponent(category)}&per_page=250&page=${page}`));
+                collected.push(...members.map((c) => c.id));
+                if (members.length < 250) break;
+                if (page === 10) throw new Error("Категория слишком велика: покрытие неполное.");
+              }
             }
             excluded = collected; classificationComplete = ids.length > 0;
           } catch { classificationComplete = false; }
@@ -37,6 +42,7 @@ export const getMarkets = createServerFn({ method: "GET" }).handler(async () => 
       })().finally(() => { pending = null; });
       cached = await pending;
     }
+    if (!cached) throw new Error("Нет данных CoinGecko.");
     return { ...cached, assets: selectTopAssets(cached.assets, cached.excluded), error: "" };
   } catch (e) {
     return { assets: cached ? selectTopAssets(cached.assets, cached.excluded) : [], excluded: cached?.excluded ?? [], classificationComplete: cached?.classificationComplete ?? false, fetchedAt: cached?.fetchedAt ?? 0, error: e instanceof Error ? e.message : "Не удалось получить рыночные данные." };
