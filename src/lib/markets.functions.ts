@@ -24,11 +24,15 @@ export const getMarkets = createServerFn({ method: "GET" }).handler(async () => 
         if (!classificationComplete) {
           try {
             const categories = z.array(z.object({ category_id: z.string(), name: z.string() })).parse(await publicJson("/coins/categories/list"));
-            const ids = categories.filter((c) => /tokenized (stocks?|etfs?|equities)|tokenized stock/i.test(c.name)).map((c) => c.category_id);
+            const ids = categories.filter((c) => ["tokenized-stock", "tokenized-exchange-traded-funds-etfs"].includes(c.category_id)).map((c) => c.category_id);
             const collected: string[] = [];
             for (const category of ids) {
-              const members = z.array(z.object({ id: z.string() })).parse(await publicJson(`/coins/markets?vs_currency=usd&category=${encodeURIComponent(category)}&per_page=250&page=1`));
-              collected.push(...members.map((c) => c.id));
+              for (let page = 1; page <= 10; page++) {
+                const members = z.array(z.object({ id: z.string() })).parse(await publicJson(`/coins/markets?vs_currency=usd&category=${encodeURIComponent(category)}&per_page=250&page=${page}`));
+                collected.push(...members.map((c) => c.id));
+                if (members.length < 250) break;
+                if (page === 10) throw new Error("Категория слишком велика: покрытие неполное.");
+              }
             }
             excluded = collected; classificationComplete = ids.length > 0;
           } catch { classificationComplete = false; }

@@ -11,6 +11,8 @@ export function MarketChart({ data, mode = "candles", levels = [], currentPrice 
   const [ready, setReady] = useState(false);
   const [hover, setHover] = useState("");
   const previous = useRef<Data | null>(null);
+  const latest = useRef(data);
+  latest.current = data;
   const overlay = useRef<ISeriesApi<"Area"> | null>(null);
   const levelSeries = useRef<ISeriesApi<"Line"> | null>(null);
   const resolveColor = useRef<(token: string) => string>(() => "");
@@ -59,7 +61,7 @@ export function MarketChart({ data, mode = "candles", levels = [], currentPrice 
       chart.panes()[1]?.setStretchFactor(1.3);
       chart.panes()[2]?.setStretchFactor(2);
       chart.subscribeCrosshairMove((param) => {
-        const bar = param.seriesData.get(candle);
+        const bar = mode === "area" ? latest.current.candles.find((c) => c.openTime / 1000 === param.time) : param.seriesData.get(candle);
         const vol = param.seriesData.get(volume);
         const r = param.seriesData.get(rsi);
         const e20 = param.seriesData.get(ema20), e50 = param.seriesData.get(ema50);
@@ -96,7 +98,7 @@ export function MarketChart({ data, mode = "candles", levels = [], currentPrice 
     if (previous.current && range) a.chart.timeScale().setVisibleRange(range);
     else a.chart.timeScale().setVisibleLogicalRange({ from: Math.max(0, data.candles.length - 120), to: data.candles.length + 3 });
     previous.current = data;
-  }, [data, ready]);
+  }, [data, ready, levels, currentPrice]);
 
   useEffect(() => {
     const series = levelSeries.current;
