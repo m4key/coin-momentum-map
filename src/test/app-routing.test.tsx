@@ -1,5 +1,5 @@
 import { QueryClient } from "@tanstack/react-query";
-import { createRouter, rootRouteId } from "@tanstack/react-router";
+import { createMemoryHistory, createRouter, rootRouteId } from "@tanstack/react-router";
 import { describe, expect, it } from "vitest";
 
 import { routeTree } from "@/routeTree.gen";
@@ -13,5 +13,15 @@ describe("App routing", () => {
     const matches = router.matchRoutes("/");
 
     expect(matches.at(-1)?.routeId).not.toBe(rootRouteId);
+  });
+  it("keeps Risk Screener available and removes standalone Charts", () => {
+    const router = createRouter({ routeTree, context: { queryClient: new QueryClient() } });
+    expect(router.matchRoutes("/risk").at(-1)?.routeId).toBe("/risk");
+    expect(router.matchRoutes("/charts").at(-1)?.routeId).toBe(rootRouteId);
+  });
+  it("redirects the disabled Dashboard to Crypto Screener", async () => {
+    const router = createRouter({ routeTree, history: createMemoryHistory({ initialEntries: ["/dashboard"] }), context: { queryClient: new QueryClient() } });
+    await router.load();
+    expect(router.state.location.pathname).toBe("/");
   });
 });
