@@ -16,3 +16,6 @@
 - [x] Widen Risk Screener chart, compact scenario rows and synchronize colors/source prices.
 - [x] Verify real coin, period, mode switching and mobile layout; run regression tests.
 - [x] Resolve the RiskPanel optional-price type error and verify the preview compiles.
+- [ ] Rebuild Risk header and controls to match the uploaded reference.
+- [ ] Align wide chart with compact selectable scenario table and shared highlighted levels.
+- [ ] Verify real-data selection, chart modes, indicators, desktop/mobile layout and tests.
