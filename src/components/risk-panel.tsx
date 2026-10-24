@@ -11,6 +11,7 @@ import { MarketChart } from "./market-chart";
 import { Button } from "./ui/button";
 
 const price = (n: number) => n.toLocaleString("en", { maximumSignificantDigits: 7 });
+type RiskResult = ReturnType<typeof riskScenarios> & { data: ReturnType<typeof chartData> | null; error: string };
 export function RiskPanel({ asset, timeframe, days, level, ascending }: { asset: MarketAsset; timeframe: Timeframe; days: number; level: string; ascending: boolean }) {
   const ticker = asset.binanceTicker ?? "";
   const query = useQuery({ ...candleOptions(ticker, timeframe), enabled: Boolean(ticker), refetchInterval: 120_000 });
@@ -19,7 +20,7 @@ export function RiskPanel({ asset, timeframe, days, level, ascending }: { asset:
   const quote = riskQuote(quotes.data, ticker);
   const [mode, setMode] = useState<"candles" | "area">("candles");
   const [expanded, setExpanded] = useState<RiskLevel | null>(null);
-  const result = useMemo(() => {
+  const result = useMemo<RiskResult>(() => {
     try {
       const data = chartData((query.data ?? []).filter((c) => c.openTime >= Date.now() - days * 86400000), timeframe);
       return { data, ...riskScenarios(data.candles, quote?.price ?? NaN), error: "" };
@@ -41,7 +42,7 @@ export function RiskPanel({ asset, timeframe, days, level, ascending }: { asset:
     </div>
     <div className="mb-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground"><span>CoinGecko: ${price(asset.price)} USD · агрегированная цена, не база уровней</span><span>Котировка Binance: {quotes.dataUpdatedAt ? new Date(quotes.dataUpdatedAt).toLocaleTimeString("ru") : "—"}{quotes.error && quotes.data ? " · устарела" : ""}</span><span>История Binance: {date}</span></div>
     {(query.error || quotes.error || result.error) && <div role="alert" className="mb-2 flex flex-wrap items-center gap-2 text-xs text-down">{query.error?.message || quotes.error?.message || result.error}<Button variant="outline" size="sm" onClick={() => { void query.refetch(); void quotes.refetch(); }}>Повторить</Button></div>}
-    <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_370px]">
+    <div className="grid min-w-0 gap-4 2xl:grid-cols-[minmax(0,1fr)_350px]">
       <div className="min-w-0" data-testid="risk-chart">
         {result.data?.candles.length ? <MarketChart key={`${ticker}:${timeframe}:${mode}`} data={result.data} mode={mode} levels={lines} currentPrice={quote?.price} currentPriceLabel="Текущая · Binance USDT" overview /> : <div className="flex h-[520px] items-center justify-center text-muted-foreground">{query.isPending ? "Загрузка реальной истории…" : "Нет данных"}</div>}
         <div className="flex flex-wrap gap-x-4 gap-y-2 border-t border-border py-3 text-xs" aria-label="Легенда уровней">{riskLevels.filter((key) => level === "all" || key === level).map((key) => <span key={key} className={`flex items-center gap-2 ${riskAppearance[key].text}`}><span className={`h-0.5 w-5 shrink-0 ${riskAppearance[key].background}`} />{riskLabels[key]}</span>)}</div>
