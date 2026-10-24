@@ -5,7 +5,7 @@ import type { chartData } from "@/lib/chart-data";
 type Data = ReturnType<typeof chartData>;
 const number = (n: number) => n.toLocaleString("en-US", { maximumSignificantDigits: 7 });
 
-export function MarketChart({ data, mode = "candles", levels = [], currentPrice, currentPriceLabel = "Текущая · CG", overview = false }: { data: Data; mode?: "candles" | "area"; levels?: { price: number; title: string; token: string }[]; currentPrice?: number; currentPriceLabel?: string; overview?: boolean }) {
+export function MarketChart({ data, mode = "candles", levels = [], currentPrice, currentPriceLabel = "Текущая · CG", overview = false }: { data: Data; mode?: "candles" | "area"; levels?: { price: number; title: string; token: string; selected?: boolean }[]; currentPrice?: number; currentPriceLabel?: string; overview?: boolean }) {
   const container = useRef<HTMLDivElement>(null);
   const api = useRef<{ chart: IChartApi; candle: ISeriesApi<"Candlestick">; volume: ISeriesApi<"Histogram">; ema20: ISeriesApi<"Line">; ema50: ISeriesApi<"Line">; rsi: ISeriesApi<"Line">; up: string; down: string } | null>(null);
   const [ready, setReady] = useState(false);
@@ -103,12 +103,12 @@ export function MarketChart({ data, mode = "candles", levels = [], currentPrice,
   useEffect(() => {
     const series = levelSeries.current;
     if (!ready || !series) return;
-    const lines = [...levels, ...(currentPrice ? [{ price: currentPrice, title: currentPriceLabel, token: "--foreground" }] : [])].map((l) => series.createPriceLine({ price: l.price, title: l.title, color: resolveColor.current(l.token), lineWidth: 1, lineStyle: 2, axisLabelVisible: true }));
+    const lines = [...levels, ...(currentPrice ? [{ price: currentPrice, title: currentPriceLabel, token: "--foreground", selected: false }] : [])].map((l) => series.createPriceLine({ price: l.price, title: overview ? "" : l.title, color: resolveColor.current(l.token), lineWidth: l.selected ? 2 : 1, lineStyle: 2, axisLabelVisible: true }));
     return () => { if (levelSeries.current === series) lines.forEach((line) => series.removePriceLine(line)); };
-  }, [levels, currentPrice, currentPriceLabel, ready]);
+  }, [levels, currentPrice, currentPriceLabel, ready, overview]);
 
-  return <div className="min-w-0">
+  return <div className="min-w-0" data-chart-levels={overview ? JSON.stringify(levels) : undefined}>
     <div className="min-h-10 break-words py-2 font-mono text-xs leading-5 text-muted-foreground" aria-live="polite" data-testid="candle-values">{hover || "OHLC · EMA 20 · EMA 50 · Объём · RSI 14"}</div>
-    <div ref={container} className={overview ? "h-[520px] w-full sm:h-[700px]" : "h-[560px] w-full sm:h-[650px]"} aria-label="Свечной график, объём и RSI 14" />
+    <div ref={container} className={overview ? "h-[520px] w-full sm:h-[640px]" : "h-[560px] w-full sm:h-[650px]"} aria-label="Свечной график, объём и RSI 14" />
   </div>;
 }

@@ -17,4 +17,5 @@
 - Market capitalization rankings and aggregate USD quotes come from CoinGecko via a cached public server function; Binance charts require explicit CoinGecko-ID mappings and active exchange symbols to prevent ticker collisions.
 - Risk scenarios are pure historical calculations over closed candles, with source labels separating aggregate USD current prices from Binance USDT history; levels are conditional references, not probability estimates.
 - Risk Screener anchors USDT scenario prices to the shared bulk Binance ticker cache, never aggregate USD; one shared risk presentation map links table, legend and chart tokens to keep colors consistent.
+- Risk chart mode belongs to the page controls; each panel derives the selected scenario summary, table highlight and chart line emphasis from one selected level to prevent presentation drift. Undefined methodology versions remain disabled rather than inventing calculations.
 - Keep the disabled Dashboard URL as a redirect to the screener; standalone Charts is removed while shared analysis/chart modules remain available to active pages.
